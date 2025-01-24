@@ -74,7 +74,7 @@ def twitter_auth(current_wallet):
         oauth = OAuth1Session(
             "iyW4VEcTlV3w2qwxDfBW4oPbr",  # Consumer key/APi key
             client_secret="tYbKvgFkjoVzdMChACiabIcI_XL1RSF3mJYdo7t4NivuHOJv8w",  # Consumer secret/Api secret
-            callback_uri=CALLBACK_URL  # For PIN-based auth 'oob'
+            callback_uri='oob'  # For PIN-based auth 'oob'
         )
 
         # Get OAuth 1.0a request token
@@ -119,11 +119,11 @@ def verify_pin(current_wallet):
         
         # Exchange PIN for access tokens
         oauth = OAuth1Session(
-            "9DqmazPqDjD8gGOyeaNn1sHt9",
-            client_secret="vqDSCHarmUrUAB9LoBll5g0CjsIKx2H2zH9WCiaIiq1OpDu9h9",
+            "iyW4VEcTlV3w2qwxDfBW4oPbr",
+            client_secret="tYbKvgFkjoVzdMChACiabIcI_XL1RSF3mJYdo7t4NivuHOJv8w",
             resource_owner_key=request_token,
             resource_owner_secret=request_secret,
-            verifier=pin
+            # verifier=pin
         )
         
         try:
