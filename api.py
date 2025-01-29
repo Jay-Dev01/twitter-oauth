@@ -31,7 +31,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
 CALLBACK_URL = "https://caring-follow-415683.framer.app/"
-TWITTER_CLIENT_SECRET = "Cr0ouoH88sGPLktZDagj29xjeP0NRdewcm7lel75i-bmsALH5V-67vU"
+TWITTER_CLIENT_SECRET = "go5Cl9Us7eCdr6PKzb7GeFX-IppV-gY9iI3RBWc7x7GNtE93PV"
 twitter_tokens = {}  
 def token_required(f):
     @wraps(f)
@@ -72,9 +72,9 @@ def twitter_auth(current_wallet):
     try:
         # Initialize OAuth 1.0a session
         oauth = OAuth1Session(
-            "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ",  # Client key
-            client_secret="8po-tnEnT4VUcHmjLxjEMmN3IYD2dz78lUOxluJmYqtrfYli5d",  # Client secret
-            callback_uri='oob'  # For PIN-based auth 'oob'
+            "9IyUfQlzjWrcvEzoQRJJGgPnq",  # Client key
+            client_secret="kadR7zIRjzLfsw0bb19b5GwYt9xw4LXeLht6QreeNxUPAUE2Kn",  # Client secret
+            callback_uri=CALLBACK_URL # For PIN-based auth 'oob'
         )
 
         # Get OAuth 1.0a request token
