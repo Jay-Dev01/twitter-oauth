@@ -29,9 +29,9 @@ data_store = {}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 
-TWITTER_CLIENT_ID = "WlRYRjNUbFRuOEY3Uk8xdkRWLTg6MTpjaQ"
+TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
 CALLBACK_URL = "https://caring-follow-415683.framer.app/"
-TWITTER_CLIENT_SECRET = "tYbKvgFkjoVzdMChACiabIcI_XL1RSF3mJYdo7t4NivuHOJv8w"
+TWITTER_CLIENT_SECRET = "Cr0ouoH88sGPLktZDagj29xjeP0NRdewcm7lel75i-bmsALH5V-67vU"
 twitter_tokens = {}  
 def token_required(f):
     @wraps(f)
@@ -72,15 +72,15 @@ def twitter_auth(current_wallet):
     try:
         # Initialize OAuth 1.0a session
         oauth = OAuth1Session(
-            "iyW4VEcTlV3w2qwxDfBW4oPbr",  # Consumer key/APi key
-            client_secret="tYbKvgFkjoVzdMChACiabIcI_XL1RSF3mJYdo7t4NivuHOJv8w",  # Consumer secret/Api secret
-            callback_uri='oob'  # For PIN-based auth 'oob'
+            "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ",  # Client key
+            client_secret="8po-tnEnT4VUcHmjLxjEMmN3IYD2dz78lUOxluJmYqtrfYli5d",  # Client secret
+            callback_uri=CALLBACK_URL  # For PIN-based auth 'oob'
         )
 
         # Get OAuth 1.0a request token
         try:
             response = oauth.fetch_request_token('https://api.twitter.com/oauth/request_token')
-            
+            print(response)
             # Store request tokens for later use
             twitter_tokens[f"{current_wallet}_request_token"] = response.get('oauth_token')
             twitter_tokens[f"{current_wallet}_request_secret"] = response.get('oauth_token_secret')
@@ -119,11 +119,11 @@ def verify_pin(current_wallet):
         
         # Exchange PIN for access tokens
         oauth = OAuth1Session(
-            "iyW4VEcTlV3w2qwxDfBW4oPbr",
-            client_secret="tYbKvgFkjoVzdMChACiabIcI_XL1RSF3mJYdo7t4NivuHOJv8w",
+            "9DqmazPqDjD8gGOyeaNn1sHt9",
+            client_secret="vqDSCHarmUrUAB9LoBll5g0CjsIKx2H2zH9WCiaIiq1OpDu9h9",
             resource_owner_key=request_token,
             resource_owner_secret=request_secret,
-            # verifier=pin
+            verifier=pin
         )
         
         try:
