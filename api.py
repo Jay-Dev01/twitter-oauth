@@ -30,7 +30,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 
 TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
-CALLBACK_URL = "https://caring-follow-415683.framer.app/"
+CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
 TWITTER_CLIENT_SECRET = "go5Cl9Us7eCdr6PKzb7GeFX-IppV-gY9iI3RBWc7x7GNtE93PV"
 twitter_tokens = {}  
 def token_required(f):
