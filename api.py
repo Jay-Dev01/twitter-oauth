@@ -202,7 +202,7 @@ def twitter_callback():
         if not code or not wallet_id:
             return "Auth failed", 400
 
-        CALLBACK_URL = "https://mem-api.memga.io/image"
+        CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
         
         token_url = 'https://api.twitter.com/2/oauth2/token'
         token_data = {
