@@ -48,8 +48,9 @@ class Agent:
         self.functions = functions
         self.connected_twitter = connected_twitter
 
-# In-memory storage (replace with database in production)
-agents = {}
+# Change the agents storage to be wallet-specific
+# Instead of a simple dict, we'll use a nested dict where the first key is the wallet address
+agents = {}  # Format: { wallet_address: { agent_id: Agent } }
 
 def token_required(f):
     @wraps(f)
@@ -439,12 +440,16 @@ def upload_image(current_wallet):
 @app.route('/api/agents', methods=['GET'])
 @token_required
 def get_agents(current_wallet):
-    return jsonify([agent.__dict__ for agent in agents.values()])
+    # Return only agents belonging to the current wallet
+    wallet_agents = agents.get(current_wallet, {})
+    return jsonify([agent.__dict__ for agent in wallet_agents.values()])
 
 @app.route('/api/agents/<agent_id>', methods=['GET'])
 @token_required
 def get_agent(current_wallet, agent_id):
-    agent = agents.get(agent_id)
+    # Check if wallet has any agents
+    wallet_agents = agents.get(current_wallet, {})
+    agent = wallet_agents.get(agent_id)
     if agent is None:
         return jsonify({'error': 'Agent not found'}), 404
     return jsonify(agent.__dict__)
@@ -464,23 +469,29 @@ def create_agent(current_wallet):
         id=agent_id,
         name=data['name'],
         symbol=data['symbol'],
-        description=data.get('description', ''),  # Optional fields with defaults
+        description=data.get('description', ''),
         goal=data.get('goal', ''),
-        functions=[],  # Start with empty functions
-        connected_twitter=False  # Start disconnected
+        functions=[],
+        connected_twitter=False
     )
     
-    agents[agent_id] = agent
+    # Initialize wallet's agents dict if it doesn't exist
+    if current_wallet not in agents:
+        agents[current_wallet] = {}
+    
+    agents[current_wallet][agent_id] = agent
     return jsonify(agent.__dict__), 201
 
 @app.route('/api/agents/<agent_id>', methods=['PATCH'])
 @token_required
 def patch_agent(current_wallet, agent_id):
-    if agent_id not in agents:
+    # Check if wallet has any agents
+    wallet_agents = agents.get(current_wallet, {})
+    if agent_id not in wallet_agents:
         return jsonify({'error': 'Agent not found'}), 404
     
     data = request.json
-    agent = agents[agent_id]
+    agent = wallet_agents[agent_id]
     
     # Update only the fields that are provided
     if 'name' in data:
@@ -492,7 +503,6 @@ def patch_agent(current_wallet, agent_id):
     if 'goal' in data:
         agent.goal = data['goal']
     if 'functions' in data:
-        # Validate functions if they're being updated
         valid_functions = {
             'post_tweet': {'service': 'Twitter', 'description': 'Create and publish a new tweet'},
             'reply_tweet': {'service': 'Twitter', 'description': 'Reply to an existing tweet'},
@@ -513,10 +523,15 @@ def patch_agent(current_wallet, agent_id):
 @app.route('/api/agents/<agent_id>', methods=['DELETE'])
 @token_required
 def delete_agent(current_wallet, agent_id):
-    if agent_id not in agents:
+    # Check if wallet has any agents
+    wallet_agents = agents.get(current_wallet, {})
+    if agent_id not in wallet_agents:
         return jsonify({'error': 'Agent not found'}), 404
     
-    del agents[agent_id]
+    del wallet_agents[agent_id]
+    # Remove wallet entry if no agents left
+    if not wallet_agents:
+        del agents[current_wallet]
     return '', 204
 
 if __name__ == '__main__':
