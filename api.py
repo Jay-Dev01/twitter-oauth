@@ -15,6 +15,8 @@ import tweepy
 import json
 from pathlib import Path
 from solders.keypair import Keypair
+import uuid
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 load_dotenv()
@@ -28,11 +30,27 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 data_store = {}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-
+API_KEY="9IyUfQlzjWrcvEzoQRJJGgPnq"
+API_SECRET="kadR7zIRjzLfsw0bb19b5GwYt9xw4LXeLht6QreeNxUPAUE2Kn"
 TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
-CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
+CALLBACK_URL = "https://caring-follow-415683.framer.app/"
 TWITTER_CLIENT_SECRET = "go5Cl9Us7eCdr6PKzb7GeFX-IppV-gY9iI3RBWc7x7GNtE93PV"
 twitter_tokens = {}  
+
+# Add this model class
+class Agent:
+    def __init__(self, id, name, symbol, description, goal, functions, connected_twitter):
+        self.id = id
+        self.name = name
+        self.symbol = symbol
+        self.description = description
+        self.goal = goal
+        self.functions = functions
+        self.connected_twitter = connected_twitter
+
+# In-memory storage (replace with database in production)
+agents = {}
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -72,8 +90,8 @@ def twitter_auth(current_wallet):
     try:
         # Initialize OAuth 1.0a session
         oauth = OAuth1Session(
-            "9IyUfQlzjWrcvEzoQRJJGgPnq",  # Client key
-            client_secret="kadR7zIRjzLfsw0bb19b5GwYt9xw4LXeLht6QreeNxUPAUE2Kn",  # Client secret
+            client_key=API_KEY,  # Api key
+            client_secret=API_SECRET,  # Api secret
             callback_uri=CALLBACK_URL # For PIN-based auth 'oob'
         )
 
@@ -97,57 +115,6 @@ def twitter_auth(current_wallet):
             
     except Exception as e:
         print(f"Twitter auth error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/api/twitter/verify-pin', methods=['POST'])
-@token_required
-def verify_pin(current_wallet):
-    """Handle PIN verification for OAuth 1.0a"""
-    try:
-        data = request.get_json()
-        pin = data.get('pin')
-        
-        if not pin:
-            return jsonify({"error": "PIN is required"}), 400
-            
-        request_token = twitter_tokens.get(f"{current_wallet}_request_token")
-        request_secret = twitter_tokens.get(f"{current_wallet}_request_secret")
-        
-        if not request_token or not request_secret:
-            return jsonify({"error": "Request tokens not found"}), 400
-        
-        # Exchange PIN for access tokens
-        oauth = OAuth1Session(
-            "9DqmazPqDjD8gGOyeaNn1sHt9",
-            client_secret="vqDSCHarmUrUAB9LoBll5g0CjsIKx2H2zH9WCiaIiq1OpDu9h9",
-            resource_owner_key=request_token,
-            resource_owner_secret=request_secret,
-            verifier=pin
-        )
-        
-        try:
-            response = oauth.fetch_access_token('https://api.twitter.com/oauth/access_token')
-            print(response)
-            # Store OAuth 1.0a tokens
-            twitter_tokens[f"{current_wallet}_oauth1_token"] = response['oauth_token']
-            twitter_tokens[f"{current_wallet}_oauth1_secret"] = response['oauth_token_secret']
-            
-            # Clean up request tokens
-            twitter_tokens.pop(f"{current_wallet}_request_token", None)
-            twitter_tokens.pop(f"{current_wallet}_request_secret", None)
-            
-            return jsonify({
-                "success": True,
-                "screen_name": response['screen_name']
-            }), 200
-            
-        except Exception as e:
-            print(f"Access token error: {str(e)}")
-            return jsonify({"error": "Failed to verify PIN"}), 500
-            
-    except Exception as e:
-        print(f"PIN verification error: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
 @token_required
@@ -193,67 +160,11 @@ def check_twitter_status(current_wallet):
             "error": str(e)
         }), 500
     
-@app.route('/image')
-def twitter_callback():
-    try:
-        code = request.args.get('code')
-        wallet_id = request.args.get('state')
-        
-        if not code or not wallet_id:
-            return "Auth failed", 400
-
-        CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
-        
-        token_url = 'https://api.twitter.com/2/oauth2/token'
-        token_data = {
-            'code': code,
-            'grant_type': 'authorization_code',
-            'client_id': TWITTER_CLIENT_ID,
-            'redirect_uri': CALLBACK_URL, 
-            'code_verifier': 'challenge'
-        }
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-
-        response = requests.post(token_url, data=token_data, headers=headers)
-        if response.ok:
-            tokens = response.json()
-            print(tokens)
-            # Store just the access token - Twitter OAuth 2.0 doesn't use token secret
-            twitter_tokens[wallet_id] = tokens['access_token']
-            
-            memga_payload = {
-                "creator": wallet_id,
-                "auth": tokens['access_token']
-            }
-            
-            try:
-                memga_response = requests.post(
-                    'https://blooming-shelf-46686-3db90db5ee01.herokuapp.com/add_twitter',
-                    json=memga_payload,
-                    headers={'Content-Type': 'application/json'}
-                )
-                if not memga_response.ok:
-                    print(f"memga API error: {memga_response.text}")
-            except Exception as e:
-                print(f"Error with API: {str(e)}")
-            
-            return redirect('https://memga.io', code=301)
-        else:
-            print(f"Token exchange error: {response.text}")
-            return f"Error getting access token: {response.text}", 400
-
-    except Exception as e:
-        print(f"Callback error: {str(e)}")
-        return str(e), 500
-
-
 
 @app.route('/api/twitter/post', methods=['POST'])
 @token_required
 def post_to_twitter(current_wallet):
-    """Post the wallet's current image to Twitter"""
+    """Post the wallet's tweet to Twitter"""
     try:
         oauth1_token_key = f"{current_wallet}_oauth1_token"
         oauth1_secret_key = f"{current_wallet}_oauth1_secret"
@@ -261,50 +172,26 @@ def post_to_twitter(current_wallet):
         if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
             return jsonify({"error": "Not authorized with Twitter"}), 401
 
-        # Get the image path
-        filename = f"memga_image_{current_wallet}.png"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        if not os.path.exists(filepath):
-            return jsonify({"error": "No image found for this wallet"}), 404
-
         try:
             # Retrieve the access token and secret for the current wallet
             access_token = twitter_tokens[f"{current_wallet}_oauth1_token"]
             access_token_secret = twitter_tokens[f"{current_wallet}_oauth1_secret"]
             
-            # Create v1 connection for media upload
-            auth_v1 = tweepy.OAuth1UserHandler(
-                "9DqmazPqDjD8gGOyeaNn1sHt9",  # API key
-                "vqDSCHarmUrUAB9LoBll5g0CjsIKx2H2zH9WCiaIiq1OpDu9h9"  # API secret
-            )
-            auth_v1.set_access_token(access_token, access_token_secret)
-            client_v1 = tweepy.API(auth_v1)
-
             # Create v2 connection for tweeting
             client_v2 = tweepy.Client(
-                consumer_key="9DqmazPqDjD8gGOyeaNn1sHt9",
-                consumer_secret="vqDSCHarmUrUAB9LoBll5g0CjsIKx2H2zH9WCiaIiq1OpDu9h9",
+                consumer_key=API_KEY,   #Api key
+                consumer_secret=API_SECRET,  #Api secret
                 access_token=access_token,
                 access_token_secret=access_token_secret
             )
 
-            dialogue = data_store.get(current_wallet, {}).get("dialogue", "")
-            
-            # Construct the tweet text using the dialogue and append "$Memga" at the end
-            tweet_text = f"{dialogue} $Memga"
+            # Get the tweet text from data store
+            tweet_text = data_store.get(current_wallet, {}).get("tweet", "")
+            if not tweet_text:
+                return jsonify({"error": "No tweet text found for this wallet"}), 404
 
-            print("Uploading media...")
-            # Upload media using v1
-            media = client_v1.media_upload(filename=filepath)
-            media_id = media.media_id
-            print(f"Media uploaded with ID: {media_id}")
-
-            # Create tweet with media using v2
-            response = client_v2.create_tweet(
-                text=tweet_text,
-                media_ids=[media_id]
-            )
+            # Create tweet using v2
+            response = client_v2.create_tweet(text=tweet_text)
 
             print(f"Tweet created: {response}")
             
@@ -396,20 +283,17 @@ def authenticate():
 @token_required
 def post_data(current_wallet):
     payload = request.get_json()
-    if not payload or 'value' not in payload:
-        return jsonify({"error": "Missing 'value' in request body"}), 400
+    if not payload or 'tweet' not in payload or 'needNewTweet' not in payload:
+        return jsonify({"error": "Missing required fields in request body"}), 400
 
-    value = payload['value']
+    tweet = payload['tweet']
+    need_new_tweet = payload['needNewTweet']
     
     if current_wallet not in data_store:
-        data_store[current_wallet] = {
-            "characters": value,
-            "needNewPanel": True,
-            "sceneDescription": "",
-            "dialogue": ""
-        }
-    else:
-        data_store[current_wallet]["characters"] = value
+        data_store[current_wallet] = {}
+    
+    data_store[current_wallet]["tweet"] = tweet
+    data_store[current_wallet]["needNewTweet"] = need_new_tweet
     
     return jsonify({
         "message": "Data received successfully", 
@@ -536,7 +420,7 @@ def upload_image(current_wallet):
         return jsonify({"error": "File type not allowed"}), 400
 
     # Change this line to match the expected filename format
-    filename = f"memga_image_{current_wallet}.png"  # Remove the random hex string
+    filename = f"image_{current_wallet}.png"  # Remove the random hex string
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
     print(f"Uploading file to: {filepath}")  # Debugging log
@@ -550,6 +434,90 @@ def upload_image(current_wallet):
 
     return jsonify({"message": "File uploaded successfully", "filePath": f"/api/images/{filename}"}), 200
     
+
+# Add these new routes
+@app.route('/api/agents', methods=['GET'])
+@token_required
+def get_agents(current_wallet):
+    return jsonify(list(agents.values()))
+
+@app.route('/api/agents/<agent_id>', methods=['GET'])
+@token_required
+def get_agent(current_wallet, agent_id):
+    agent = agents.get(agent_id)
+    if agent is None:
+        return jsonify({'error': 'Agent not found'}), 404
+    return jsonify(agent.__dict__)
+
+@app.route('/api/agents', methods=['POST'])
+@token_required
+def create_agent(current_wallet):
+    data = request.json
+    
+    # Only require name and symbol for initial creation
+    if not data.get('name') or not data.get('symbol'):
+        return jsonify({'error': 'Name and symbol are required'}), 400
+
+    agent_id = str(uuid.uuid4())
+    
+    agent = Agent(
+        id=agent_id,
+        name=data['name'],
+        symbol=data['symbol'],
+        description=data.get('description', ''),  # Optional fields with defaults
+        goal=data.get('goal', ''),
+        functions=[],  # Start with empty functions
+        connected_twitter=False  # Start disconnected
+    )
+    
+    agents[agent_id] = agent
+    return jsonify(agent.__dict__), 201
+
+@app.route('/api/agents/<agent_id>', methods=['PATCH'])
+@token_required
+def patch_agent(current_wallet, agent_id):
+    if agent_id not in agents:
+        return jsonify({'error': 'Agent not found'}), 404
+    
+    data = request.json
+    agent = agents[agent_id]
+    
+    # Update only the fields that are provided
+    if 'name' in data:
+        agent.name = data['name']
+    if 'symbol' in data:
+        agent.symbol = data['symbol']
+    if 'description' in data:
+        agent.description = data['description']
+    if 'goal' in data:
+        agent.goal = data['goal']
+    if 'functions' in data:
+        # Validate functions if they're being updated
+        valid_functions = {
+            'post_tweet': {'service': 'Twitter', 'description': 'Create and publish a new tweet'},
+            'reply_tweet': {'service': 'Twitter', 'description': 'Reply to an existing tweet'},
+            'like_tweet': {'service': 'Twitter', 'description': 'Like a specific tweet'}
+        }
+        
+        for func in data['functions']:
+            if func not in valid_functions:
+                return jsonify({'error': f'Invalid function: {func}'}), 400
+                
+        agent.functions = data['functions']
+        
+    if 'connected_twitter' in data:
+        agent.connected_twitter = data['connected_twitter']
+    
+    return jsonify(agent.__dict__)
+
+@app.route('/api/agents/<agent_id>', methods=['DELETE'])
+@token_required
+def delete_agent(current_wallet, agent_id):
+    if agent_id not in agents:
+        return jsonify({'error': 'Agent not found'}), 404
+    
+    del agents[agent_id]
+    return '', 204
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
