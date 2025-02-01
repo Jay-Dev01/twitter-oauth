@@ -439,7 +439,7 @@ def upload_image(current_wallet):
 @app.route('/api/agents', methods=['GET'])
 @token_required
 def get_agents(current_wallet):
-    return jsonify(list(agents.values()))
+    return jsonify([agent.__dict__ for agent in agents.values()])
 
 @app.route('/api/agents/<agent_id>', methods=['GET'])
 @token_required
