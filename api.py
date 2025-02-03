@@ -191,6 +191,7 @@ def twitter_callback(current_wallet):
         print(f"Twitter callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/twitter/status', methods=['GET'])
 @token_required
 def check_twitter_status(current_wallet):
     """Check if a wallet has Twitter connected"""
@@ -198,30 +199,41 @@ def check_twitter_status(current_wallet):
         # Check if wallet has a Twitter token stored
         if current_wallet in twitter_tokens:
             # Test the token by making a simple Twitter API call
-            headers = {
-                'Authorization': f'Bearer {twitter_tokens[current_wallet]}'
-            }
+            oauth1_token_key = f"{current_wallet}_oauth1_token"
+            oauth1_secret_key = f"{current_wallet}_oauth1_secret"
             
-            # Call Twitter's API to verify the token
-            response = requests.get(
-                'https://api.twitter.com/2/users/me',
-                headers=headers
-            )
-            
-            if response.ok:
-                user_data = response.json()
-                return jsonify({
-                    "connected": True,
-                    "twitter_user": user_data['data']
-                }), 200
-            else:
-                # Token might be invalid
-                twitter_tokens.pop(current_wallet, None)  # Remove invalid token
+            if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
                 return jsonify({
                     "connected": False,
-                    "error": "Invalid Twitter token"
+                    "error": "No Twitter connection found"
+                }), 404
+            
+            # Create v2 client for getting user info
+            client = tweepy.Client(
+                consumer_key=API_KEY,
+                consumer_secret=API_SECRET,
+                access_token=twitter_tokens[oauth1_token_key],
+                access_token_secret=twitter_tokens[oauth1_secret_key]
+            )
+            
+            # Get user info
+            user = client.get_me(user_fields=['username', 'name'])
+            
+            if user.data:
+                return jsonify({
+                    "connected": True,
+                    "twitter_user": {
+                        "username": user.data.username,
+                        "name": user.data.name,
+                        "id": str(user.data.id)
+                    }
+                }), 200
+            else:
+                return jsonify({
+                    "connected": False,
+                    "error": "Could not fetch user data"
                 }), 401
-        
+            
         return jsonify({
             "connected": False,
             "error": "No Twitter connection found"
