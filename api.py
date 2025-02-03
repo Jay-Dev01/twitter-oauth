@@ -33,9 +33,10 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 API_KEY="9IyUfQlzjWrcvEzoQRJJGgPnq"
 API_SECRET="kadR7zIRjzLfsw0bb19b5GwYt9xw4LXeLht6QreeNxUPAUE2Kn"
 TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
-CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
+CALLBACK_URL = "https://caring-follow-415683.framer.app/"
 TWITTER_CLIENT_SECRET = "go5Cl9Us7eCdr6PKzb7GeFX-IppV-gY9iI3RBWc7x7GNtE93PV"
 twitter_tokens = {}  
+twitter_connection_state = {}  # Track which agent is being connected: { wallet: agent_id }
 
 # Add this model class
 class Agent:
@@ -89,17 +90,28 @@ def twitter_auth(current_wallet):
     """Start Twitter OAuth process for a wallet"""
     
     try:
+        data = request.json
+        agent_id = data.get('agent_id')
+        
+        # Verify agent exists and belongs to wallet
+        wallet_agents = agents.get(current_wallet, {})
+        if agent_id not in wallet_agents:
+            return jsonify({"error": "Agent not found"}), 404
+
+        # Store which agent is being connected
+        twitter_connection_state[current_wallet] = agent_id
+        
         # Initialize OAuth 1.0a session
         oauth = OAuth1Session(
-            client_key=API_KEY,  # Api key
-            client_secret=API_SECRET,  # Api secret
-            callback_uri=CALLBACK_URL # For PIN-based auth 'oob'
+            client_key=API_KEY,
+            client_secret=API_SECRET,
+            callback_uri=CALLBACK_URL
         )
 
         # Get OAuth 1.0a request token
         try:
             response = oauth.fetch_request_token('https://api.twitter.com/oauth/request_token')
-            print(response)
+            
             # Store request tokens for later use
             twitter_tokens[f"{current_wallet}_request_token"] = response.get('oauth_token')
             twitter_tokens[f"{current_wallet}_request_secret"] = response.get('oauth_token_secret')
@@ -107,7 +119,6 @@ def twitter_auth(current_wallet):
             # Create authorization URL
             auth_url = f"https://api.twitter.com/oauth/authorize?oauth_token={response.get('oauth_token')}"
             
-            print(f"Generated OAuth 1.0a URL: {auth_url}")
             return jsonify({"auth_url": auth_url}), 200
             
         except Exception as e:
@@ -117,44 +128,98 @@ def twitter_auth(current_wallet):
     except Exception as e:
         print(f"Twitter auth error: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
+
+@app.route('/api/twitter/callback', methods=['POST'])
+@token_required
+def twitter_callback(current_wallet):
+    """Handle Twitter OAuth callback and update agent status"""
+    try:
+        data = request.json
+        oauth_token = data.get('oauth_token')
+        oauth_verifier = data.get('oauth_verifier')
+        
+        if not oauth_token or not oauth_verifier:
+            return jsonify({"error": "Missing OAuth token or verifier"}), 400
+
+        # Get the agent_id that was being connected
+        agent_id = twitter_connection_state.get(current_wallet)
+        if not agent_id:
+            return jsonify({"error": "No pending Twitter connection"}), 400
+
+        # Complete OAuth flow
+        oauth = OAuth1Session(
+            client_key=API_KEY,
+            client_secret=API_SECRET,
+            resource_owner_key=twitter_tokens.get(f"{current_wallet}_request_token"),
+            resource_owner_secret=twitter_tokens.get(f"{current_wallet}_request_secret"),
+            verifier=oauth_verifier
+        )
+
+        # Get the access token
+        oauth_tokens = oauth.fetch_access_token('https://api.twitter.com/oauth/access_token')
+        
+        # Store the access tokens
+        twitter_tokens[f"{current_wallet}_oauth1_token"] = oauth_tokens.get('oauth_token')
+        twitter_tokens[f"{current_wallet}_oauth1_secret"] = oauth_tokens.get('oauth_token_secret')
+
+        # Get Twitter username
+        client = tweepy.Client(
+            consumer_key=API_KEY,
+            consumer_secret=API_SECRET,
+            access_token=oauth_tokens.get('oauth_token'),
+            access_token_secret=oauth_tokens.get('oauth_token_secret')
+        )
+        
+        # Get user info
+        user = client.get_me()
+        twitter_username = user.data.username
+
+        # Update agent's connected_twitter status
+        wallet_agents = agents.get(current_wallet, {})
+        if agent_id in wallet_agents:
+            wallet_agents[agent_id].connected_twitter = twitter_username
+        
+        # Clean up connection state
+        del twitter_connection_state[current_wallet]
+        
+        return jsonify({
+            "success": True,
+            "twitter_username": twitter_username
+        }), 200
+        
+    except Exception as e:
+        print(f"Twitter callback error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 @token_required
 def check_twitter_status(current_wallet):
     """Check if a wallet has Twitter connected"""
     try:
         # Check if wallet has a Twitter token stored
         if current_wallet in twitter_tokens:
-            oauth1_token_key = f"{current_wallet}_oauth1_token"
-            oauth1_secret_key = f"{current_wallet}_oauth1_secret"
-            access_token = twitter_tokens[oauth1_token_key]
-            access_token_secret = twitter_tokens[oauth1_secret_key]
+            # Test the token by making a simple Twitter API call
+            headers = {
+                'Authorization': f'Bearer {twitter_tokens[current_wallet]}'
+            }
             
-            # Create v2 client for the user
-            client_v2 = tweepy.Client(
-                consumer_key=API_KEY,
-                consumer_secret=API_SECRET,
-                access_token=access_token,
-                access_token_secret=access_token_secret
+            # Call Twitter's API to verify the token
+            response = requests.get(
+                'https://api.twitter.com/2/users/me',
+                headers=headers
             )
             
-            # Get the authenticated user's information
-            user = client_v2.get_me(user_fields=['username', 'name'])
-            
-            if user.data:
+            if response.ok:
+                user_data = response.json()
                 return jsonify({
                     "connected": True,
-                    "twitter_user": {
-                        "username": user.data.username,
-                        "name": user.data.name,
-                        "id": user.data.id
-                    }
+                    "twitter_user": user_data['data']
                 }), 200
             else:
-                twitter_tokens.pop(oauth1_token_key, None)
-                twitter_tokens.pop(oauth1_secret_key, None)
+                # Token might be invalid
+                twitter_tokens.pop(current_wallet, None)  # Remove invalid token
                 return jsonify({
                     "connected": False,
-                    "error": "Could not fetch user data"
+                    "error": "Invalid Twitter token"
                 }), 401
         
         return jsonify({
