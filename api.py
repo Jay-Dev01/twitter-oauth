@@ -124,29 +124,37 @@ def check_twitter_status(current_wallet):
     try:
         # Check if wallet has a Twitter token stored
         if current_wallet in twitter_tokens:
-            # Test the token by making a simple Twitter API call
-            headers = {
-                'Authorization': f'Bearer {twitter_tokens[current_wallet]}'
-            }
+            oauth1_token_key = f"{current_wallet}_oauth1_token"
+            oauth1_secret_key = f"{current_wallet}_oauth1_secret"
+            access_token = twitter_tokens[oauth1_token_key]
+            access_token_secret = twitter_tokens[oauth1_secret_key]
             
-            # Call Twitter's API to verify the token
-            response = requests.get(
-                'https://api.twitter.com/2/users/me',
-                headers=headers
+            # Create v2 client for the user
+            client_v2 = tweepy.Client(
+                consumer_key=API_KEY,
+                consumer_secret=API_SECRET,
+                access_token=access_token,
+                access_token_secret=access_token_secret
             )
             
-            if response.ok:
-                user_data = response.json()
+            # Get the authenticated user's information
+            user = client_v2.get_me(user_fields=['username', 'name'])
+            
+            if user.data:
                 return jsonify({
                     "connected": True,
-                    "twitter_user": user_data['data']
+                    "twitter_user": {
+                        "username": user.data.username,
+                        "name": user.data.name,
+                        "id": user.data.id
+                    }
                 }), 200
             else:
-                # Token might be invalid
-                twitter_tokens.pop(current_wallet, None)  # Remove invalid token
+                twitter_tokens.pop(oauth1_token_key, None)
+                twitter_tokens.pop(oauth1_secret_key, None)
                 return jsonify({
                     "connected": False,
-                    "error": "Invalid Twitter token"
+                    "error": "Could not fetch user data"
                 }), 401
         
         return jsonify({
