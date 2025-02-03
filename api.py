@@ -196,18 +196,18 @@ def twitter_callback(current_wallet):
 def check_twitter_status(current_wallet):
     """Check if a wallet has Twitter connected"""
     try:
-        # Check if wallet has a Twitter token stored
-        if current_wallet in twitter_tokens:
-            # Test the token by making a simple Twitter API call
-            oauth1_token_key = f"{current_wallet}_oauth1_token"
-            oauth1_secret_key = f"{current_wallet}_oauth1_secret"
-            
-            if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
-                return jsonify({
-                    "connected": False,
-                    "error": "No Twitter connection found"
-                }), 404
-            
+        # Get OAuth tokens using consistent naming
+        oauth1_token_key = f"{current_wallet}_oauth1_token"
+        oauth1_secret_key = f"{current_wallet}_oauth1_secret"
+        
+        # Check if OAuth tokens exist
+        if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
+            return jsonify({
+                "connected": False,
+                "error": "No Twitter connection found"
+            }), 404
+
+        try:
             # Create v2 client for getting user info
             client = tweepy.Client(
                 consumer_key=API_KEY,
@@ -233,12 +233,14 @@ def check_twitter_status(current_wallet):
                     "connected": False,
                     "error": "Could not fetch user data"
                 }), 401
+                
+        except Exception as e:
+            print(f"Twitter API error: {str(e)}")
+            return jsonify({
+                "connected": False,
+                "error": str(e)
+            }), 500
             
-        return jsonify({
-            "connected": False,
-            "error": "No Twitter connection found"
-        }), 404
-        
     except Exception as e:
         print(f"Status check error: {str(e)}")
         return jsonify({
