@@ -218,7 +218,7 @@ def check_twitter_status(current_wallet):
             
             # Get user info
             user = client.get_me(user_fields=['username', 'name'])
-            
+            print(user.data.username)
             if user.data:
                 return jsonify({
                     "connected": True,
