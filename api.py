@@ -88,18 +88,21 @@ def token_required(f):
 @token_required
 def twitter_auth(current_wallet):
     """Start Twitter OAuth process for a wallet"""
-    
     try:
         data = request.json
         agent_id = data.get('agent_id')
         
+        print(f"Starting Twitter auth for wallet: {current_wallet}, agent: {agent_id}")
+        
         # Verify agent exists and belongs to wallet
         wallet_agents = agents.get(current_wallet, {})
         if agent_id not in wallet_agents:
+            print(f"Agent not found. Available agents: {wallet_agents}")
             return jsonify({"error": "Agent not found"}), 404
 
         # Store which agent is being connected
         twitter_connection_state[current_wallet] = agent_id
+        print(f"Stored connection state: {twitter_connection_state}")
         
         # Initialize OAuth 1.0a session
         oauth = OAuth1Session(
@@ -108,16 +111,19 @@ def twitter_auth(current_wallet):
             callback_uri=CALLBACK_URL
         )
 
-        # Get OAuth 1.0a request token
         try:
+            print("Fetching request token...")
             response = oauth.fetch_request_token('https://api.twitter.com/oauth/request_token')
+            print(f"Got request token response: {response}")
             
             # Store request tokens for later use
             twitter_tokens[f"{current_wallet}_request_token"] = response.get('oauth_token')
             twitter_tokens[f"{current_wallet}_request_secret"] = response.get('oauth_token_secret')
+            print(f"Stored tokens: {twitter_tokens}")
             
             # Create authorization URL
             auth_url = f"https://api.twitter.com/oauth/authorize?oauth_token={response.get('oauth_token')}"
+            print(f"Generated auth URL: {auth_url}")
             
             return jsonify({"auth_url": auth_url}), 200
             
@@ -135,30 +141,33 @@ def twitter_callback(current_wallet):
     """Handle Twitter OAuth callback and update agent status"""
     try:
         data = request.json
+        print(f"Callback received. Data: {data}")
+        print(f"Current connection state: {twitter_connection_state}")
+        print(f"Current tokens: {twitter_tokens}")
+        
         oauth_token = data.get('oauth_token')
         oauth_verifier = data.get('oauth_verifier')
         
-        print(f"Callback received for wallet: {current_wallet}")
-        print(f"OAuth token: {oauth_token}")
-        
         if not oauth_token or not oauth_verifier:
+            print("Missing OAuth token or verifier")
             return jsonify({"error": "Missing OAuth token or verifier"}), 400
 
         # Get the agent_id that was being connected
         agent_id = twitter_connection_state.get(current_wallet)
-        print(f"Found agent_id in connection state: {agent_id}")
-        
         if not agent_id:
+            print(f"No pending connection for wallet: {current_wallet}")
             return jsonify({"error": "No pending Twitter connection"}), 400
 
         # Verify agent exists
         wallet_agents = agents.get(current_wallet, {})
         agent = wallet_agents.get(agent_id)
+        print(f"Found agent: {agent.__dict__ if agent else None}")
         
         if not agent:
             return jsonify({"error": "Agent not found"}), 404
 
         try:
+            print("Starting OAuth completion...")
             # Complete OAuth flow
             oauth = OAuth1Session(
                 client_key=API_KEY,
@@ -170,7 +179,7 @@ def twitter_callback(current_wallet):
 
             # Get the access token
             oauth_tokens = oauth.fetch_access_token('https://api.twitter.com/oauth/access_token')
-            print("Obtained access tokens")
+            print(f"Got access tokens: {oauth_tokens}")
             
             # Store the access tokens
             twitter_tokens[f"{current_wallet}_oauth1_token"] = oauth_tokens.get('oauth_token')
@@ -184,7 +193,6 @@ def twitter_callback(current_wallet):
                 access_token_secret=oauth_tokens.get('oauth_token_secret')
             )
             
-            # Get user info
             user = client.get_me()
             twitter_username = user.data.username
             print(f"Got Twitter username: {twitter_username}")
