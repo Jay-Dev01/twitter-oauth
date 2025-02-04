@@ -138,55 +138,74 @@ def twitter_callback(current_wallet):
         oauth_token = data.get('oauth_token')
         oauth_verifier = data.get('oauth_verifier')
         
+        print(f"Callback received for wallet: {current_wallet}")
+        print(f"OAuth token: {oauth_token}")
+        
         if not oauth_token or not oauth_verifier:
             return jsonify({"error": "Missing OAuth token or verifier"}), 400
 
         # Get the agent_id that was being connected
         agent_id = twitter_connection_state.get(current_wallet)
+        print(f"Found agent_id in connection state: {agent_id}")
+        
         if not agent_id:
             return jsonify({"error": "No pending Twitter connection"}), 400
 
-        # Complete OAuth flow
-        oauth = OAuth1Session(
-            client_key=API_KEY,
-            client_secret=API_SECRET,
-            resource_owner_key=twitter_tokens.get(f"{current_wallet}_request_token"),
-            resource_owner_secret=twitter_tokens.get(f"{current_wallet}_request_secret"),
-            verifier=oauth_verifier
-        )
-
-        # Get the access token
-        oauth_tokens = oauth.fetch_access_token('https://api.twitter.com/oauth/access_token')
-        
-        # Store the access tokens
-        twitter_tokens[f"{current_wallet}_oauth1_token"] = oauth_tokens.get('oauth_token')
-        twitter_tokens[f"{current_wallet}_oauth1_secret"] = oauth_tokens.get('oauth_token_secret')
-
-        # Get Twitter username
-        client = tweepy.Client(
-            consumer_key=API_KEY,
-            consumer_secret=API_SECRET,
-            access_token=oauth_tokens.get('oauth_token'),
-            access_token_secret=oauth_tokens.get('oauth_token_secret')
-        )
-        
-        # Get user info
-        user = client.get_me()
-        twitter_username = user.data.username
-
-        # Update agent's connected_twitter status
+        # Verify agent exists
         wallet_agents = agents.get(current_wallet, {})
-        if agent_id in wallet_agents:
-            wallet_agents[agent_id].connected_twitter = twitter_username
+        agent = wallet_agents.get(agent_id)
         
-        # Clean up connection state
-        del twitter_connection_state[current_wallet]
-        
-        return jsonify({
-            "success": True,
-            "twitter_username": twitter_username
-        }), 200
-        
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 404
+
+        try:
+            # Complete OAuth flow
+            oauth = OAuth1Session(
+                client_key=API_KEY,
+                client_secret=API_SECRET,
+                resource_owner_key=twitter_tokens.get(f"{current_wallet}_request_token"),
+                resource_owner_secret=twitter_tokens.get(f"{current_wallet}_request_secret"),
+                verifier=oauth_verifier
+            )
+
+            # Get the access token
+            oauth_tokens = oauth.fetch_access_token('https://api.twitter.com/oauth/access_token')
+            print("Obtained access tokens")
+            
+            # Store the access tokens
+            twitter_tokens[f"{current_wallet}_oauth1_token"] = oauth_tokens.get('oauth_token')
+            twitter_tokens[f"{current_wallet}_oauth1_secret"] = oauth_tokens.get('oauth_token_secret')
+
+            # Get Twitter username
+            client = tweepy.Client(
+                consumer_key=API_KEY,
+                consumer_secret=API_SECRET,
+                access_token=oauth_tokens.get('oauth_token'),
+                access_token_secret=oauth_tokens.get('oauth_token_secret')
+            )
+            
+            # Get user info
+            user = client.get_me()
+            twitter_username = user.data.username
+            print(f"Got Twitter username: {twitter_username}")
+
+            # Update agent's connected_twitter status
+            agent.connected_twitter = twitter_username
+            print(f"Updated agent status: {agent.__dict__}")
+            
+            # Clean up connection state
+            del twitter_connection_state[current_wallet]
+            
+            return jsonify({
+                "success": True,
+                "twitter_username": twitter_username,
+                "agent": agent.__dict__
+            }), 200
+            
+        except Exception as e:
+            print(f"OAuth completion error: {str(e)}")
+            return jsonify({"error": f"OAuth completion failed: {str(e)}"}), 500
+            
     except Exception as e:
         print(f"Twitter callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -197,14 +216,10 @@ def check_twitter_status(current_wallet, agent_id):
     """Check if a specific agent has Twitter connected"""
     try:
         print(f"Checking status for wallet: {current_wallet}, agent: {agent_id}")
-        print(f"All agents: {agents}")
         
         # Check if agent exists and belongs to wallet
         wallet_agents = agents.get(current_wallet, {})
-        print(f"Wallet agents: {wallet_agents}")
-        
         agent = wallet_agents.get(agent_id)
-        print(f"Found agent: {agent.__dict__ if agent else None}")
         
         if not agent:
             print("Agent not found")
@@ -213,74 +228,44 @@ def check_twitter_status(current_wallet, agent_id):
                 "error": "Agent not found"
             }), 404
 
-        print(f"Agent connected_twitter status: {agent.connected_twitter}")
-        # If agent has no Twitter connection
-        if not agent.connected_twitter:
-            print("No Twitter connection for agent")
-            return jsonify({
-                "connected": False,
-                "error": "Twitter not connected for this agent"
-            }), 404
-
         # Get OAuth tokens using consistent naming
         oauth1_token_key = f"{current_wallet}_oauth1_token"
         oauth1_secret_key = f"{current_wallet}_oauth1_secret"
-        
-        print(f"Looking for tokens: {oauth1_token_key}, {oauth1_secret_key}")
-        print(f"Available tokens: {twitter_tokens}")
 
-        # Check if OAuth tokens exist
-        if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
-            print("OAuth tokens not found")
-            # Reset agent's connected_twitter if tokens don't exist
-            agent.connected_twitter = False
-            return jsonify({
-                "connected": False,
-                "error": "No Twitter connection found"
-            }), 404
-
-        try:
-            print("Creating Twitter client")
-            # Create v2 client for getting user info
-            client = tweepy.Client(
-                consumer_key=API_KEY,
-                consumer_secret=API_SECRET,
-                access_token=twitter_tokens[oauth1_token_key],
-                access_token_secret=twitter_tokens[oauth1_secret_key]
-            )
+        # If we have tokens and a connected username, verify the connection
+        if (oauth1_token_key in twitter_tokens and 
+            oauth1_secret_key in twitter_tokens and 
+            agent.connected_twitter):
             
-            print("Getting user info")
-            # Get user info
-            user = client.get_me(user_fields=['username', 'name'])
-            print(f"Got user info: {user.data if user else None}")
-            
-            if user.data and user.data.username == agent.connected_twitter:
-                print("Twitter connection verified")
-                return jsonify({
-                    "connected": True,
-                    "twitter_user": {
-                        "username": user.data.username,
-                        "name": user.data.name,
-                        "id": str(user.data.id)
-                    }
-                }), 200
-            else:
-                print("Twitter username mismatch")
-                # Reset agent's connected_twitter if username doesn't match
-                agent.connected_twitter = False
-                return jsonify({
-                    "connected": False,
-                    "error": "Twitter connection mismatch"
-                }), 401
+            try:
+                client = tweepy.Client(
+                    consumer_key=API_KEY,
+                    consumer_secret=API_SECRET,
+                    access_token=twitter_tokens[oauth1_token_key],
+                    access_token_secret=twitter_tokens[oauth1_secret_key]
+                )
                 
-        except Exception as e:
-            print(f"Twitter API error: {str(e)}")
-            # Reset agent's connected_twitter on API error
-            agent.connected_twitter = False
-            return jsonify({
-                "connected": False,
-                "error": str(e)
-            }), 500
+                user = client.get_me(user_fields=['username', 'name'])
+                
+                if user.data and user.data.username == agent.connected_twitter:
+                    return jsonify({
+                        "connected": True,
+                        "twitter_user": {
+                            "username": user.data.username,
+                            "name": user.data.name,
+                            "id": str(user.data.id)
+                        }
+                    }), 200
+                
+            except Exception as e:
+                print(f"Twitter API error: {str(e)}")
+                agent.connected_twitter = False
+
+        # If we get here, either there's no connection or verification failed
+        return jsonify({
+            "connected": False,
+            "error": "Twitter not connected"
+        }), 200  # Changed to 200 to avoid 404
             
     except Exception as e:
         print(f"Status check error: {str(e)}")
@@ -288,7 +273,6 @@ def check_twitter_status(current_wallet, agent_id):
             "connected": False,
             "error": str(e)
         }), 500
-    
 
 @app.route('/api/twitter/post', methods=['POST'])
 @token_required
