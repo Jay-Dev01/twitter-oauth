@@ -196,18 +196,27 @@ def twitter_callback(current_wallet):
 def check_twitter_status(current_wallet, agent_id):
     """Check if a specific agent has Twitter connected"""
     try:
+        print(f"Checking status for wallet: {current_wallet}, agent: {agent_id}")
+        print(f"All agents: {agents}")
+        
         # Check if agent exists and belongs to wallet
         wallet_agents = agents.get(current_wallet, {})
+        print(f"Wallet agents: {wallet_agents}")
+        
         agent = wallet_agents.get(agent_id)
+        print(f"Found agent: {agent.__dict__ if agent else None}")
         
         if not agent:
+            print("Agent not found")
             return jsonify({
                 "connected": False,
                 "error": "Agent not found"
             }), 404
 
+        print(f"Agent connected_twitter status: {agent.connected_twitter}")
         # If agent has no Twitter connection
         if not agent.connected_twitter:
+            print("No Twitter connection for agent")
             return jsonify({
                 "connected": False,
                 "error": "Twitter not connected for this agent"
@@ -216,9 +225,13 @@ def check_twitter_status(current_wallet, agent_id):
         # Get OAuth tokens using consistent naming
         oauth1_token_key = f"{current_wallet}_oauth1_token"
         oauth1_secret_key = f"{current_wallet}_oauth1_secret"
+        
+        print(f"Looking for tokens: {oauth1_token_key}, {oauth1_secret_key}")
+        print(f"Available tokens: {twitter_tokens}")
 
         # Check if OAuth tokens exist
         if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
+            print("OAuth tokens not found")
             # Reset agent's connected_twitter if tokens don't exist
             agent.connected_twitter = False
             return jsonify({
@@ -227,6 +240,7 @@ def check_twitter_status(current_wallet, agent_id):
             }), 404
 
         try:
+            print("Creating Twitter client")
             # Create v2 client for getting user info
             client = tweepy.Client(
                 consumer_key=API_KEY,
@@ -235,10 +249,13 @@ def check_twitter_status(current_wallet, agent_id):
                 access_token_secret=twitter_tokens[oauth1_secret_key]
             )
             
+            print("Getting user info")
             # Get user info
             user = client.get_me(user_fields=['username', 'name'])
+            print(f"Got user info: {user.data if user else None}")
             
             if user.data and user.data.username == agent.connected_twitter:
+                print("Twitter connection verified")
                 return jsonify({
                     "connected": True,
                     "twitter_user": {
@@ -248,6 +265,7 @@ def check_twitter_status(current_wallet, agent_id):
                     }
                 }), 200
             else:
+                print("Twitter username mismatch")
                 # Reset agent's connected_twitter if username doesn't match
                 agent.connected_twitter = False
                 return jsonify({
