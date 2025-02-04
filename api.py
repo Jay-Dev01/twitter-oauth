@@ -191,18 +191,36 @@ def twitter_callback(current_wallet):
         print(f"Twitter callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/twitter/status', methods=['GET'])
+@app.route('/api/twitter/status/<agent_id>', methods=['GET'])
 @token_required
-def check_twitter_status(current_wallet):
-    """Check if a wallet has Twitter connected"""
+def check_twitter_status(current_wallet, agent_id):
+    """Check if a specific agent has Twitter connected"""
     try:
+        # Check if agent exists and belongs to wallet
+        wallet_agents = agents.get(current_wallet, {})
+        agent = wallet_agents.get(agent_id)
+        
+        if not agent:
+            return jsonify({
+                "connected": False,
+                "error": "Agent not found"
+            }), 404
+
+        # If agent has no Twitter connection
+        if not agent.connected_twitter:
+            return jsonify({
+                "connected": False,
+                "error": "Twitter not connected for this agent"
+            }), 404
+
         # Get OAuth tokens using consistent naming
         oauth1_token_key = f"{current_wallet}_oauth1_token"
         oauth1_secret_key = f"{current_wallet}_oauth1_secret"
-        print("checking twitter status for wallet: ", current_wallet)
+
         # Check if OAuth tokens exist
         if oauth1_token_key not in twitter_tokens or oauth1_secret_key not in twitter_tokens:
-
+            # Reset agent's connected_twitter if tokens don't exist
+            agent.connected_twitter = False
             return jsonify({
                 "connected": False,
                 "error": "No Twitter connection found"
@@ -219,8 +237,8 @@ def check_twitter_status(current_wallet):
             
             # Get user info
             user = client.get_me(user_fields=['username', 'name'])
-            print(user.data.username)
-            if user.data:
+            
+            if user.data and user.data.username == agent.connected_twitter:
                 return jsonify({
                     "connected": True,
                     "twitter_user": {
@@ -230,13 +248,17 @@ def check_twitter_status(current_wallet):
                     }
                 }), 200
             else:
+                # Reset agent's connected_twitter if username doesn't match
+                agent.connected_twitter = False
                 return jsonify({
                     "connected": False,
-                    "error": "Could not fetch user data"
+                    "error": "Twitter connection mismatch"
                 }), 401
                 
         except Exception as e:
             print(f"Twitter API error: {str(e)}")
+            # Reset agent's connected_twitter on API error
+            agent.connected_twitter = False
             return jsonify({
                 "connected": False,
                 "error": str(e)
