@@ -18,7 +18,17 @@ from solders.keypair import Keypair
 import uuid
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+
+CORS(app, supports_credentials=True, resources={
+    r"/api/*": {
+        "origins": ["https://ubiquitous-lolly-8d1bc5.netlify.app"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
+
 load_dotenv()
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -312,9 +322,10 @@ def api_key_required(f):
 
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-API-Key')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
+    if not response.headers.get('Access-Control-Allow-Origin'):
+        response.headers.add('Access-Control-Allow-Origin', 'https://ubiquitous-lolly-8d1bc5.netlify.app')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-API-Key')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS')
     return response
 
 
