@@ -48,6 +48,7 @@ class Agent:
         self.goal = goal
         self.functions = functions
         self.connected_twitter = connected_twitter
+        self.contract_address = ""  # Initialize as empty string
 
 # Change the agents storage to be wallet-specific
 # Instead of a simple dict, we'll use a nested dict where the first key is the wallet address
@@ -622,6 +623,8 @@ def patch_agent(current_wallet, agent_id):
         agent.description = data['description']
     if 'goal' in data:
         agent.goal = data['goal']
+    if 'contract_address' in data:
+        agent.contract_address = data['contract_address']
     if 'functions' in data:
         valid_functions = {
             'post_tweet': {'service': 'Twitter', 'description': 'Create and publish a new tweet'},
