@@ -189,6 +189,7 @@ def twitter_auth(current_wallet):
                 # Store request tokens
                 twitter_tokens[f"{current_wallet}_request_token"] = response.get('oauth_token')
                 twitter_tokens[f"{current_wallet}_request_secret"] = response.get('oauth_token_secret')
+                print(f"Stored tokens: {twitter_tokens}")
                 
                 # Create authorization URL
                 auth_url = f"https://api.twitter.com/oauth/authorize?oauth_token={response.get('oauth_token')}"
