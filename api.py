@@ -190,6 +190,27 @@ def twitter_auth(current_wallet):
                 twitter_tokens[f"{current_wallet}_request_token"] = response.get('oauth_token')
                 twitter_tokens[f"{current_wallet}_request_secret"] = response.get('oauth_token_secret')
                 print(f"Stored tokens: {twitter_tokens}")
+                # Get user info
+                
+                client1 = tweepy.Client(
+                consumer_key=API_KEY,
+                consumer_secret=API_SECRET,
+                access_token=response.get('oauth_token'),
+                access_token_secret=response.get('oauth_token_secret')
+                )
+                user = client1.get_me(user_fields=['username', 'name', 'id'])
+                if not user or not user.data:
+                    raise Exception("Failed to get user data")
+                
+                twitter_user = {
+                    'username': user.data.username,
+                    'name': user.data.name,
+                    'id': str(user.data.id)
+                }
+
+                # Update agent's connected_twitter status
+                agent.connected_twitter = user.data.username
+                print(f"Agent connected to twitter: {agent.connected_twitter}")
                 
                 # Create authorization URL
                 auth_url = f"https://api.twitter.com/oauth/authorize?oauth_token={response.get('oauth_token')}"
