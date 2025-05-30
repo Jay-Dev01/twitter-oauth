@@ -30,7 +30,11 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 data_store = {}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-
+API_KEY=""
+API_SECRET=""
+TWITTER_CLIENT_ID = ""
+CALLBACK_URL = ""
+TWITTER_CLIENT_SECRET = ""
 twitter_tokens = {}  
 twitter_connection_state = {}  # Track which agent is being connected: { wallet: agent_id }
 
