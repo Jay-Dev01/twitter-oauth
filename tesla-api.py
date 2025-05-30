@@ -30,11 +30,11 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 data_store = {}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-API_KEY="9IyUfQlzjWrcvEzoQRJJGgPnq"
-API_SECRET="kadR7zIRjzLfsw0bb19b5GwYt9xw4LXeLht6QreeNxUPAUE2Kn"
-TWITTER_CLIENT_ID = "V09mVVg2QVFoM0d4Q3JmM09Gd086MTpjaQ"
-CALLBACK_URL = "https://ubiquitous-lolly-8d1bc5.netlify.app/"
-TWITTER_CLIENT_SECRET = "go5Cl9Us7eCdr6PKzb7GeFX-IppV-gY9iI3RBWc7x7GNtE93PV"
+API_KEY=""
+API_SECRET=""
+TWITTER_CLIENT_ID = ""
+CALLBACK_URL = ""
+TWITTER_CLIENT_SECRET = ""
 twitter_tokens = {}  
 twitter_connection_state = {}  # Track which agent is being connected: { wallet: agent_id }
 
